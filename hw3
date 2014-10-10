@@ -1,0 +1,163 @@
+% Austin Charles Stone
+% Programming Languages Honors Homework 2 - A Parser and Evaluator for a Simple Language 
+% EID: as46569
+% October 2nd 2014
+
+
+%---['var',x,';',x,':=',1,';','if','(',x,'<',0,')','then',x,':=',10,'.','else',x,':=',20,'.','endif',';',return,x,'.']----
+%---[function,f,'(',x,')','{',return,x,'.','}',';',return,f,'(','(',10,+,1,')',')','.']
+
+%---- Loop ----
+loop(loop(Condition, StatementSeq))-->['while'],['('],[Condition],[')'],['do'],stmntSeq(StatementSeq),['done'].
+
+%---- Function Declaration ----
+funcDecl(functionDeclaration(IdFunctionName, IdParam, Body)) --> ['function'],[IdFunctionName],['('],[IdParam],[')'],['{'],prog(Body),['}'],{isVariable(IdParam), isVariable(IdFunctionName)}.
+
+%---- statement ::= declaration | assignment | conditional | loop ----
+stmnt(statement(S))-->condit(S).
+stmnt(statement(S))-->decl(S).
+stmnt(statement(S))-->assign(S).
+stmnt(statement(S))-->loop(S).
+
+%---- conditional ----
+condit(conditional(Condition, Statement1, Statement2))-->['if'],['('],con(Condition),[')'],['then'],stmntSeq(Statement1),['else'],stmntSeq(Statement2),['endif'].
+
+
+%---- statementSeq ::= statement ’.’ | statement ’;’ statementSeq ----
+stmntSeq(statementSeq(S))-->stmnt(S),['.'].
+stmntSeq(statementSeq(First, Remainder))-->stmnt(First),[';'],stmntSeq(Remainder).
+
+%---- condition ::= base comp base ----
+con(condition(Base1, Comparator, Base2))-->base(Base1),comp(Comparator),base(Base2).
+
+%---- funcCall ::= < id > ’(’ base ’)’ ----
+funcCall(functionCall(FunctionId, Base))-->[FunctionId],['('],base(Base),[')'],{isVariable(FunctionId)}.
+
+%---- comp ::= ’==’ | ’<’ | ’>’ | ’<=’ | ’>=’ | ’! =’ ----
+comp(comparator(C))-->[C], {isComparator(C)}.
+isComparator('==').
+isComparator('<').
+isComparator('>').
+isComparator('<=').
+isComparator('>=').
+isComparator('!=').
+
+
+
+% ---- Parse for API ----
+parse(TokenList, AST):-prog(AST, TokenList, []).
+
+% ---- Return ---- 
+prog(segment(NextSegment))-->[return],ret(NextSegment),[.].
+
+% ---- Declaration ---- 
+prog(segment(NextSegment,Remainder))-->[var],decl(NextSegment),[';'],prog(Remainder).
+
+%---- Function Declaration ----
+prog(segment(FunctionDeclaration,Remainder))-->funcDecl(FunctionDeclaration),[';'],prog(Remainder). 
+
+%--- Statement ----
+prog(segment(Statement,Remainder))-->stmnt(Statement),[';'],prog(Remainder).
+
+% ---- Assignment ----
+prog(segment(NextSegment,Remainder))-->assign(NextSegment),[';'],prog(Remainder).
+
+% ---- Return Helper ----
+ret(return(Term))-->term(Term).
+
+% ---- Declaration Helper ----
+decl(declare(D))-->[D],{isVariable(D)}. 
+
+% ---- Assignment Helper ----
+assign(assignment(Id, Value))-->[Id],[:=],base(Value),{isVariable(Id)}.    %,{write(Id), nl, write(Value), nl},
+
+% ---- Base ----
+base(Base) --> ['('],expr(Base),[')'].                    %,{write(E),nl}.
+base(float(Int)) --> [Int],{integer(Int)}.     
+base(float(Float)) --> [Float],{float(Float)}.
+base(id(Id)) --> [Id],{isVariable(Id)}.
+base(F)-->funcCall(F).
+% ---- Factor ----
+factor(Factor) --> base(Factor).                           %, {write(B), write(' factor(B)-->base(B)'),nl}.
+
+% ---- Check if variable name ----
+isVariable(Id) :- not(reservedWord(Id)),not(float(Id)),not(integer(Id)).
+
+% ---- Expression Handling ----
+expr(E) --> term(E).                                   %,{write(E),write(' expr(E) --> term(E)'),nl}.
+expr(E) --> term(Term),[-],leftAssoc(E,Term,minus).    %,{write(leftAssoc(E,Term,minus)),write(' expr(E)-->term(Term),[-],leftAssoc(E,Term,minus)'),nl}.
+expr(E) --> term(Term),[+],leftAssoc(E,Term,plus).     %,{write(leftAssoc(E,Term,plus)),write(' expr(E) --> term(Term),[+],leftAssoc(E,Term,plus)'),nl}.
+
+% ---- Term ---- 
+term(Term) --> factor(Term).                           %,{write(Term),write(' term(Term)-->factor(Term)'),nl}.
+term(Term) --> factor(Factor),[*],leftAssoc(Term,Factor,multiply).
+term(Term) --> factor(Factor), [/], leftAssoc(Term,Factor,divide).
+
+% ---- Reserved Words ----
+reservedWord(+).
+reservedWord(-).
+reservedWord(*).
+reservedWord(/).
+
+
+%---- Outer Cases -----
+leftAssoc(expression(plus,Term,Term1),Term,plus) --> term(Term1).      %,{write(expression(plus,Term,Term1)),nl}.
+leftAssoc(expression(minus,Term,Term1),Term,minus) --> term(Term1).    %,{write(expression(minus,Term,Term1)),write(' leftAssoc(expression(minus,T,T1),T,minus) --> term(T1)'),nl}.
+leftAssoc(expression(multiply,Term,Factor1),Term,multiply) --> factor(Factor1).
+leftAssoc(expression(divide,Term,Factor1),Term,divide) --> factor(Factor1).
+
+% ---- Divide And Multiply Handling ----
+leftAssoc(Term,Factor,multiply) --> factor(Factor1), [/], leftAssoc(Term,expression(multiply,Factor,Factor1),divide).
+leftAssoc(Term,Factor,multiply) --> factor(Factor1), [*], leftAssoc(Term,expression(multiply,Factor,Factor1),multiply).
+leftAssoc(Term,Factor,divide) --> factor(Factor1), [/], leftAssoc(Term,expression(divide,Factor,Factor1) ,divide).
+leftAssoc(Term,Factor,divide) --> factor(Factor1), [*], leftAssoc(Term,expression(divide,Factor,Factor1) ,multiply).
+
+% ---- Minus And Plus Handling ----
+leftAssoc(E,Term,minus) --> term(Term1), [−], leftAssoc(E,expression(minus,Term,Term1),minus).    %,{write(expression(minus,Term,Term1)),nl}.
+leftAssoc(E,Term,minus) --> term(Term1), [+], leftAssoc(E,expression(minus,Term,Term1),plus).     %,{write(expression(minus,Term,Term1)),write(' leftAssoc(E,Term,minus) --> term(Term1), [+], leftAssoc(E,expression(minus,Term,Term1),plus)'), nl}.
+leftAssoc(E,Term,plus) --> term(Term1), [−], leftAssoc(E,expression(plus,Term,Term1) ,minus).     %,{write(expression(plus,Term,Term1)),nl}.
+leftAssoc(E,Term,plus)-->term(Term1),[+],leftAssoc(E,expression(plus,Term,Term1),plus).           %,{write(expression(plus,Term,Term1)),nl}.
+
+
+
+
+%---------------------------------------------------- EVALUATE LOGIC -------------------------------------------------------
+
+
+
+% --- evaluate terms ----
+evalTerm(float(T), Number, Assoc):-is_assoc(Assoc),Number is T.
+evalTerm(expression(Op, Term1, Term2), Number, Assoc):-is_assoc(Assoc),evalExpression(Op, Term1, Term2, Assoc, Number). 
+evalTerm(id(Var), Number, Assoc):-is_assoc(Assoc), get_assoc(Var, Assoc, Number1), (integer(Number1);float(Number1)),Number is Number1.
+
+%---- evaluate function ---- 
+evalTerm(functionCall(FunctionName, Term), Number, Assoc):-write(FunctionName),nl,write(Term),nl, is_assoc(Assoc), evalTerm(Term, ValueOfArgument, Assoc), get_assoc(FunctionName, Assoc, Function), callFunction(Function, FunctionAssoc, ValueOfArgument, Number).
+
+%---- call function ----
+callFunction(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, ValueOfArgument, Output):-write(Body),nl,is_assoc(FunctionAssoc), put_assoc(Parameter, FunctionAssoc, ValueOfArgument, NewFunctionAssoc),write(NewFunctionAssoc),evaluate(Body,Output,NewFunctionAssoc).
+
+% ---- evaluate expression ----
+evalExpression(plus, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 + Number2.
+evalExpression(minus, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 - Number2.
+evalExpression(multiply, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 * Number2.
+evalExpression(divide, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 / Number2.
+
+
+%---- function declaration ----
+evaluate(functionDeclaration(FunctionName, Parameter, Body), Assoc, NewAssoc):-is_assoc(Assoc), put_assoc(FunctionName, Assoc, functionDeclaration(FunctionName, Parameter, Body), NewAssoc).
+
+% ---- assignment ----
+evaluate(assignment(Var,Term),Assoc,NewAssoc):-is_assoc(Assoc),get_assoc(Var, Assoc, _),evalTerm(Term, Number,Assoc),put_assoc(Var, Assoc, Number, NewAssoc).
+
+% ---- new variable declared ----
+evaluate(declare(Var), Assoc, NewAssoc):-is_assoc(Assoc),put_assoc(Var, Assoc, [null], NewAssoc).
+
+% ---- return ----
+evaluate(segment(return(Term)),Number,Assoc):-write(Term),nl,is_assoc(Assoc),evalTerm(Term, Number, Assoc).
+
+% ---- driving recursion ----
+evaluate(segment(H,T), Number, Assoc):-evaluate(H, Assoc, NewAssoc),evaluate(T,Number,NewAssoc).
+
+% ---- evaluate for API ----
+evaluate(AST, Number):-evaluate(AST, Number, Assoc).
+
