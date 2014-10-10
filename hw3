@@ -126,38 +126,38 @@ leftAssoc(E,Term,plus)-->term(Term1),[+],leftAssoc(E,expression(plus,Term,Term1)
 
 
 % --- evaluate terms ----
-evalTerm(float(T), Number, Assoc):-is_assoc(Assoc),Number is T.
-evalTerm(expression(Op, Term1, Term2), Number, Assoc):-is_assoc(Assoc),evalExpression(Op, Term1, Term2, Assoc, Number). 
-evalTerm(id(Var), Number, Assoc):-is_assoc(Assoc), get_assoc(Var, Assoc, Number1), (integer(Number1);float(Number1)),Number is Number1.
+evalTerm(float(T), Number, FunctionAssoc, VariableAssoc):-is_assoc(FunctionAssoc), is_assoc(VariableAssoc),Number is T.
+evalTerm(expression(Op, Term1, Term2), Number, FunctionAssoc, VariableAssoc):-is_assoc(FunctionAssoc),is_assoc(VariableAssoc),evalExpression(Op, Term1, Term2, FunctionAssoc, VariableAssoc, Number). 
+evalTerm(id(Var), Number, FunctionAssoc, VariableAssoc):-is_assoc(FunctionAssoc),is_assoc(VariableAssoc), get_assoc(Var, VariableAssoc, Number1), (integer(Number1);float(Number1)),Number is Number1.
 
 %---- evaluate function ---- 
-evalTerm(functionCall(FunctionName, Term), Number, Assoc):-write(FunctionName),nl,write(Term),nl, is_assoc(Assoc), evalTerm(Term, ValueOfArgument, Assoc), get_assoc(FunctionName, Assoc, Function), callFunction(Function, FunctionAssoc, ValueOfArgument, Number).
+evalTerm(functionCall(FunctionName, Term), Number, FunctionAssoc, VariableAssoc):-write(FunctionName),nl,write(Term),nl, is_assoc(FunctionAssoc), is_assoc(VariableAssoc), evalTerm(Term, ValueOfArgument, FunctionAssoc, VariableAssoc), get_assoc(FunctionName, FunctionAssoc, Function), callFunction(Function, FunctionAssoc, VariableAssoc, ValueOfArgument, Number).
 
 %---- call function ----
-callFunction(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, ValueOfArgument, Output):-write(Body),nl,is_assoc(FunctionAssoc), put_assoc(Parameter, FunctionAssoc, ValueOfArgument, NewFunctionAssoc),write(NewFunctionAssoc),evaluate(Body,Output,NewFunctionAssoc).
+callFunction(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, VariableAssoc, ValueOfArgument, Output):-write(Body),nl,is_assoc(FunctionAssoc), is_assoc(VariableAssoc), put_assoc(Parameter, VariableAssoc, ValueOfArgument, NewVariableAssoc),evaluate(Body,Output,FunctionAssoc, NewVariableAssoc).
 
 % ---- evaluate expression ----
-evalExpression(plus, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 + Number2.
-evalExpression(minus, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 - Number2.
-evalExpression(multiply, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 * Number2.
-evalExpression(divide, Term1, Term2, Assoc, Number):-evalTerm(Term1, Number1, Assoc), evalTerm(Term2, Number2, Assoc), Number is Number1 / Number2.
-
+evalExpression(plus, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalTerm(Term1, Number1, FunctionAssoc,VariableAssoc), evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), Number is Number1 + Number2.
+evalExpression(minus, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc), evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), Number is Number1 - Number2.
+evalExpression(multiply, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc), evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), Number is Number1 * Number2.
+evalExpression(divide, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc), evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), Number is Number1 / Number2.
 
 %---- function declaration ----
-evaluate(functionDeclaration(FunctionName, Parameter, Body), Assoc, NewAssoc):-is_assoc(Assoc), put_assoc(FunctionName, Assoc, functionDeclaration(FunctionName, Parameter, Body), NewAssoc).
+% - Might need function assoc to also contain an entry that is an assoc for all the function variables? -
+evaluate(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, VariableAssoc, NewFunctionAssoc, VariableAssoc):-is_assoc(Assoc), put_assoc(FunctionName, FunctionAssoc, functionDeclaration(FunctionName, Parameter, Body), NewFunctionAssoc).
 
 % ---- assignment ----
-evaluate(assignment(Var,Term),Assoc,NewAssoc):-is_assoc(Assoc),get_assoc(Var, Assoc, _),evalTerm(Term, Number,Assoc),put_assoc(Var, Assoc, Number, NewAssoc).
+evaluate(assignment(Var,Term),FunctionAssoc,VariableAssoc,FunctionAssoc, NewVariableAssoc):-is_assoc(FunctionAssoc),is_assoc(VariableAssoc),get_assoc(Var, VariableAssoc, _),evalTerm(Term, Number,VariableAssoc),put_assoc(Var, VariableAssoc, Number, NewVariableAssoc).
 
 % ---- new variable declared ----
-evaluate(declare(Var), Assoc, NewAssoc):-is_assoc(Assoc),put_assoc(Var, Assoc, [null], NewAssoc).
+evaluate(declare(Var), FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-is_assoc(VariableAssoc),is_assoc(FunctionAssoc),put_assoc(Var, VariableAssoc, [null], NewVariableAssoc).
 
 % ---- return ----
-evaluate(segment(return(Term)),Number,Assoc):-write(Term),nl,is_assoc(Assoc),evalTerm(Term, Number, Assoc).
+evaluate(segment(return(Term)),Number, FunctionAssoc, VariableAssoc):-write(Term),nl,is_assoc(VariableAssoc),is_assoc(FunctionAssoc),evalTerm(Term, Number, FunctionAssoc, VariableAssoc).
 
 % ---- driving recursion ----
-evaluate(segment(H,T), Number, Assoc):-evaluate(H, Assoc, NewAssoc),evaluate(T,Number,NewAssoc).
+evaluate(segment(H,T), Number, FunctionAssoc, VariableAssoc):-evaluate(H, FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc),evaluate(T,Number, NewFunctionAssoc, NewVariableAssoc).
 
 % ---- evaluate for API ----
-evaluate(AST, Number):-evaluate(AST, Number, Assoc).
+evaluate(AST, Number):-evaluate(AST, Number, FunctionAssoc, VariableAssoc).
 
