@@ -8,7 +8,8 @@
 %---[function,f,'(',x,')','{',return,x,'.','}',';',return,f,'(','(',10,+,1,')',')','.']
 
 %---- Loop ----
-loop(loop(Condition, StatementSeq))-->['while'],['('],[Condition],[')'],['do'],stmntSeq(StatementSeq),['done'].
+loop(loop(Condition, StatementSeq))-->['while'],['('],con(Condition),[')'],['do'],stmntSeq(StatementSeq),['done'].
+
 
 %---- Function Declaration ----
 funcDecl(functionDeclaration(IdFunctionName, IdParam, Body)) --> ['function'],[IdFunctionName],['('],[IdParam],[')'],['{'],prog(Body),['}'],{isVariable(IdParam), isVariable(IdFunctionName)}.
@@ -24,7 +25,7 @@ condit(conditional(Condition, Statement1, Statement2))-->['if'],['('],con(Condit
 
 
 %---- statementSeq ::= statement ’.’ | statement ’;’ statementSeq ----
-stmntSeq(statementSeq(S))-->stmnt(S),['.'].
+stmntSeq(statementSeq(S))--> stmnt(S),['.'].
 stmntSeq(statementSeq(First, Remainder))-->stmnt(First),[';'],stmntSeq(Remainder).
 
 %---- condition ::= base comp base ----
@@ -48,25 +49,25 @@ isComparator('!=').
 parse(TokenList, AST):-prog(AST, TokenList, []).
 
 % ---- Return ---- 
-prog(segment(NextSegment))-->[return],ret(NextSegment),[.].
+prog(NextSegment)-->[return],ret(NextSegment),['.'].
 
-% ---- Declaration ---- 
-prog(segment(NextSegment,Remainder))-->[var],decl(NextSegment),[';'],prog(Remainder).
+% ---- Statement ---- 
+prog((NextSegment,Remainder))-->stmnt(NextSegment),[';'],prog(Remainder).
 
 %---- Function Declaration ----
-prog(segment(FunctionDeclaration,Remainder))-->funcDecl(FunctionDeclaration),[';'],prog(Remainder). 
+prog((FunctionDeclaration,Remainder))-->funcDecl(FunctionDeclaration),[';'],prog(Remainder). 
 
 %--- Statement ----
-prog(segment(Statement,Remainder))-->stmnt(Statement),[';'],prog(Remainder).
+prog((Statement,Remainder))-->stmnt(Statement),[';'],prog(Remainder).
 
 % ---- Assignment ----
-prog(segment(NextSegment,Remainder))-->assign(NextSegment),[';'],prog(Remainder).
+prog((NextSegment,Remainder))-->assign(NextSegment),[';'],prog(Remainder).
 
 % ---- Return Helper ----
 ret(return(Term))-->term(Term).
 
 % ---- Declaration Helper ----
-decl(declare(D))-->[D],{isVariable(D)}. 
+decl(declare(D))-->['var'],[D],{isVariable(D)}. 
 
 % ---- Assignment Helper ----
 assign(assignment(Id, Value))-->[Id],[:=],base(Value),{isVariable(Id)}.    %,{write(Id), nl, write(Value), nl},
@@ -142,21 +143,81 @@ evalExpression(minus, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalT
 evalExpression(multiply, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc), evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), Number is Number1 * Number2.
 evalExpression(divide, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc), evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), Number is Number1 / Number2.
 
+
 %---- function declaration ----
 % - Might need function assoc to also contain an entry that is an assoc for all the function variables? -
 evaluate(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, VariableAssoc, NewFunctionAssoc, VariableAssoc):-is_assoc(Assoc), put_assoc(FunctionName, FunctionAssoc, functionDeclaration(FunctionName, Parameter, Body), NewFunctionAssoc).
 
+% ---- evaluate conditional ---- 
+%evaluate(if(Var,Term),FunctionAssoc,VariableAssoc,FunctionAssoc, NewVariableAssoc):-is_assoc(FunctionAssoc),is_assoc(VariableAssoc),get_assoc(Var, VariableAssoc, _),evalTerm(Term, Number,VariableAssoc),put_assoc(Var, VariableAssoc, Number, NewVariableAssoc).
+
+% ---- loop ----
+
+evaluate(statement(loop(condition(Term1, comparator(Comparator), Term2), SS)), FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-
+is_assoc(FunctionAssoc),is_assoc(VariableAssoc),
+evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc),
+evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc), 
+conditionalSatisfied(Comparator, Number1, Number2), 
+evaluate(SS, FunctionAssoc, VariableAssoc, FunctionAssoc, TempVariableAssoc), 
+evaluate(statement(loop(condition(Term1, comparator(Comparator), Term2), SS)),FunctionAssoc, TempVariableAssoc, FunctionAssoc, NewVariableAssoc).
+
+% ---- loop termination ----
+
+evaluate(statement(loop(condition(Term1, comparator(Comparator), Term2), SS)), FunctionAssoc, VariableAssoc, FunctionAssoc, VariableAssoc):-
+is_assoc(FunctionAssoc),
+is_assoc(VariableAssoc),
+evalTerm(Term1, Number1, FunctionAssoc, VariableAssoc),
+evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc),
+\+ conditionalSatisfied(Comparator, Number1, Number2).
+
+
+% ---- statementSeq ----
+
+evaluate(statementSeq(StatementSeq), FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc):-evaluate(StatementSeq,FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc).
+
+% ---- check conditional ----
+
+conditionalSatisfied(==, Number1, Number2):-Number1'=:='Number2.
+conditionalSatisfied(<, Number1, Number2):-Number1'<'Number2.
+conditionalSatisfied(>, Number1, Number2):-Number1'>'Number2.
+conditionalSatisfied(<=, Number1, Number2):-Number1'=<'Number2.
+conditionalSatisfied(>=, Number1, Number2):-Number1'>='Number2.
+conditionalSatisfied('!=', Number1, Number2):-Number1=\=Number2.
+
+
 % ---- assignment ----
-evaluate(assignment(Var,Term),FunctionAssoc,VariableAssoc,FunctionAssoc, NewVariableAssoc):-is_assoc(FunctionAssoc),is_assoc(VariableAssoc),get_assoc(Var, VariableAssoc, _),evalTerm(Term, Number,VariableAssoc),put_assoc(Var, VariableAssoc, Number, NewVariableAssoc).
+
+evaluate(statement(assignment(Var,Term)),FunctionAssoc,VariableAssoc,FunctionAssoc, NewVariableAssoc):-
+is_assoc(FunctionAssoc),
+is_assoc(VariableAssoc),
+get_assoc(Var, VariableAssoc, _),
+evalTerm(Term, Number,FunctionAssoc,VariableAssoc),
+put_assoc(Var, VariableAssoc, Number, NewVariableAssoc),
+write(statement(assignment(Var,Term))),nl.
+
 
 % ---- new variable declared ----
-evaluate(declare(Var), FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-is_assoc(VariableAssoc),is_assoc(FunctionAssoc),put_assoc(Var, VariableAssoc, [null], NewVariableAssoc).
+
+evaluate(statement(declare(Var)), FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-
+is_assoc(VariableAssoc),
+is_assoc(FunctionAssoc),
+write(declare(Var)),nl,
+put_assoc(Var, VariableAssoc, [null], NewVariableAssoc).
+
 
 % ---- return ----
-evaluate(segment(return(Term)),Number, FunctionAssoc, VariableAssoc):-write(Term),nl,is_assoc(VariableAssoc),is_assoc(FunctionAssoc),evalTerm(Term, Number, FunctionAssoc, VariableAssoc).
+
+evaluate(return(Term),Number, FunctionAssoc, VariableAssoc):-write(Term),nl,is_assoc(VariableAssoc),is_assoc(FunctionAssoc),evalTerm(Term, Number, FunctionAssoc, VariableAssoc).
+
 
 % ---- driving recursion ----
-evaluate(segment(H,T), Number, FunctionAssoc, VariableAssoc):-evaluate(H, FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc),evaluate(T,Number, NewFunctionAssoc, NewVariableAssoc).
+
+evaluate((H,T), Number, FunctionAssoc, VariableAssoc):-evaluate(H, FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc),evaluate(T,Number, NewFunctionAssoc, NewVariableAssoc).
+
+
+% ---- driving recursion for statement sequences 
+
+evaluate((H,T), FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc):-evaluate(H, FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc),evaluate(T, NewFunctionAssoc, NewVariableAssoc).
 
 % ---- evaluate for API ----
 evaluate(AST, Number):-evaluate(AST, Number, FunctionAssoc, VariableAssoc).
