@@ -70,10 +70,10 @@ ret(return(Term))-->term(Term).
 decl(declare(D))-->['var'],[D],{isVariable(D)}. 
 
 % ---- Assignment Helper ----
-assign(assignment(Id, Value))-->[Id],[:=],base(Value),{isVariable(Id)}.    %,{write(Id), nl, write(Value), nl},
+assign(assignment(Id, Value))-->[Id],[:=],base(Value),{isVariable(Id)}.
 
 % ---- Base ----
-base(Base) --> ['('],expr(Base),[')'].                    %,{write(E),nl}.
+base(Base) --> ['('],expr(Base),[')'].%,{write('base expression'),write(E),nl}.
 base(float(Int)) --> [Int],{integer(Int)}.     
 base(float(Float)) --> [Float],{float(Float)}.
 base(id(Id)) --> [Id],{isVariable(Id)}.
@@ -85,9 +85,9 @@ factor(Factor) --> base(Factor).                           %, {write(B), write('
 isVariable(Id) :- not(reservedWord(Id)),not(float(Id)),not(integer(Id)).
 
 % ---- Expression Handling ----
-expr(E) --> term(E).                                   %,{write(E),write(' expr(E) --> term(E)'),nl}.
-expr(E) --> term(Term),[-],leftAssoc(E,Term,minus).    %,{write(leftAssoc(E,Term,minus)),write(' expr(E)-->term(Term),[-],leftAssoc(E,Term,minus)'),nl}.
-expr(E) --> term(Term),[+],leftAssoc(E,Term,plus).     %,{write(leftAssoc(E,Term,plus)),write(' expr(E) --> term(Term),[+],leftAssoc(E,Term,plus)'),nl}.
+expr(E) --> term(E).%,{write('expr term '),write(E),nl}.                                   %,{write(E),write(' expr(E) --> term(E)'),nl}.
+expr(E) --> term(Term),[-],leftAssoc(E,Term,minus).%,{write(leftAssoc(E,Term,minus)),write('expr minus expr(E)-->term(Term),[-],leftAssoc(E,Term,minus)'),nl}.
+expr(E) --> term(Term),[+],leftAssoc(E,Term,plus).%,{write(leftAssoc(E,Term,plus)),write('expr plus expr(E) --> term(Term),[+],leftAssoc(E,Term,plus)'),nl}.
 
 % ---- Term ---- 
 term(Term) --> factor(Term).                           %,{write(Term),write(' term(Term)-->factor(Term)'),nl}.
@@ -100,10 +100,9 @@ reservedWord(-).
 reservedWord(*).
 reservedWord(/).
 
-
 %---- Outer Cases -----
-leftAssoc(expression(plus,Term,Term1),Term,plus) --> term(Term1).      %,{write(expression(plus,Term,Term1)),nl}.
-leftAssoc(expression(minus,Term,Term1),Term,minus) --> term(Term1).    %,{write(expression(minus,Term,Term1)),write(' leftAssoc(expression(minus,T,T1),T,minus) --> term(T1)'),nl}.
+leftAssoc(expression(minus,Term,Term1),Term,minus) --> term(Term1).%,{write(checkNextLine),nl,write(expression(minus,Term,Term1)),nl}.
+leftAssoc(expression(plus,Term,Term1),Term,plus) --> term(Term1).%,{write(checkNextLine),nl,write(expression(plus,Term,Term1)),nl}.
 leftAssoc(expression(multiply,Term,Factor1),Term,multiply) --> factor(Factor1).
 leftAssoc(expression(divide,Term,Factor1),Term,divide) --> factor(Factor1).
 
@@ -114,10 +113,10 @@ leftAssoc(Term,Factor,divide) --> factor(Factor1), [/], leftAssoc(Term,expressio
 leftAssoc(Term,Factor,divide) --> factor(Factor1), [*], leftAssoc(Term,expression(divide,Factor,Factor1) ,multiply).
 
 % ---- Minus And Plus Handling ----
-leftAssoc(E,Term,minus) --> term(Term1), [−], leftAssoc(E,expression(minus,Term,Term1),minus).    %,{write(expression(minus,Term,Term1)),nl}.
-leftAssoc(E,Term,minus) --> term(Term1), [+], leftAssoc(E,expression(minus,Term,Term1),plus).     %,{write(expression(minus,Term,Term1)),write(' leftAssoc(E,Term,minus) --> term(Term1), [+], leftAssoc(E,expression(minus,Term,Term1),plus)'), nl}.
-leftAssoc(E,Term,plus) --> term(Term1), [−], leftAssoc(E,expression(plus,Term,Term1) ,minus).     %,{write(expression(plus,Term,Term1)),nl}.
-leftAssoc(E,Term,plus)-->term(Term1),[+],leftAssoc(E,expression(plus,Term,Term1),plus).           %,{write(expression(plus,Term,Term1)),nl}.
+leftAssoc(E,Term,plus) -->term(Term1),[-],leftAssoc(E,expression(plus,Term,Term1),minus).
+leftAssoc(E,Term,minus) -->term(Term1),[-],leftAssoc(E,expression(minus,Term,Term1),minus).
+leftAssoc(E,Term,minus) -->term(Term1),[+],leftAssoc(E,expression(minus,Term,Term1),plus).
+leftAssoc(E,Term,plus)--> term(Term1),[+],leftAssoc(E,expression(plus,Term,Term1),plus).           %,{write(expression(plus,Term,Term1)),nl}.
 
 
 
@@ -233,6 +232,7 @@ put_assoc(Var, VariableAssoc, Number, NewVariableAssoc).
 evaluate(statement(declare(Var)), FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-
 is_assoc(VariableAssoc),
 is_assoc(FunctionAssoc),
+\+get_assoc(Var, VariableAssoc, [null]),
 put_assoc(Var, VariableAssoc, [null], NewVariableAssoc).
 
 
@@ -252,4 +252,6 @@ evaluate((H,T), FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc
 
 % ---- evaluate for API ----
 evaluate(AST, Number):-evaluate(AST, Number, FunctionAssoc, VariableAssoc).
+
+
 
