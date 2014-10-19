@@ -1,5 +1,5 @@
 % Austin Charles Stone
-% Programming Languages Honors Homework 2 - A Parser and Evaluator for a Simple Language 
+% Programming Languages Honors Homework 3 - A Parser and Evaluator for a Simple Language 
 % EID: as46569
 % October 2nd 2014
 
@@ -131,10 +131,15 @@ evalTerm(expression(Op, Term1, Term2), Number, FunctionAssoc, VariableAssoc):-is
 evalTerm(id(Var), Number, FunctionAssoc, VariableAssoc):-is_assoc(FunctionAssoc),is_assoc(VariableAssoc), get_assoc(Var, VariableAssoc, Number1), (integer(Number1);float(Number1)),Number is Number1.
 
 %---- evaluate function ---- 
-evalTerm(functionCall(FunctionName, Term), Number, FunctionAssoc, VariableAssoc):-is_assoc(FunctionAssoc), is_assoc(VariableAssoc), evalTerm(Term, ValueOfArgument, FunctionAssoc, VariableAssoc), get_assoc(FunctionName, FunctionAssoc, Function), callFunction(Function, FunctionAssoc, VariableAssoc, ValueOfArgument, Number).
+evalTerm(functionCall(FunctionName, Term), Number, FunctionAssoc, VariableAssoc):-is_assoc(FunctionAssoc), is_assoc(VariableAssoc), evalTerm(Term, ValueOfArgument, FunctionAssoc, VariableAssoc), get_assoc(FunctionName, FunctionAssoc, Function), callFunction(Function, FunctionAssoc, FunctionVariableAssoc, ValueOfArgument, Number).
 
 %---- call function ----
-callFunction(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, VariableAssoc, ValueOfArgument, Output):-is_assoc(FunctionAssoc), is_assoc(VariableAssoc), put_assoc(Parameter, VariableAssoc, ValueOfArgument, NewVariableAssoc),evaluate(Body,Output,FunctionAssoc, NewVariableAssoc).
+callFunction(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, VariableAssoc, ValueOfArgument, Output):-
+is_assoc(FunctionAssoc), 
+is_assoc(VariableAssoc), 
+put_assoc(Parameter, VariableAssoc, ValueOfArgument, NewVariableAssoc),
+%write(NewVariableAssoc),nl,
+evaluate(Body,Output,FunctionAssoc, NewVariableAssoc).
 
 % ---- evaluate expression ----
 evalExpression(plus, Term1, Term2, FunctionAssoc, VariableAssoc, Number):-
@@ -159,10 +164,13 @@ Number is Number1 / Number2.
 
 
 %---- function declaration ----
+
 % - Might need function assoc to also contain an entry that is an assoc for all the function variables? -
 
 evaluate(functionDeclaration(FunctionName, Parameter, Body), FunctionAssoc, VariableAssoc, NewFunctionAssoc, VariableAssoc):-
-is_assoc(Assoc),
+is_assoc(FunctionAssoc),
+is_assoc(VariableAssoc),
+\+get_assoc(FunctionName,FunctionAssoc,_),
 put_assoc(FunctionName, FunctionAssoc, functionDeclaration(FunctionName, Parameter, Body), NewFunctionAssoc).
 
 % ---- evaluate conditional ---- 
@@ -201,8 +209,21 @@ evalTerm(Term2, Number2, FunctionAssoc, VariableAssoc),
 
 % ---- statementSeq ----
 
-evaluate(statementSeq(StatementSeq), FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-
-evaluate(StatementSeq,FunctionAssoc,
+evaluate(statementSeq(S1,S2),FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-
+evaluate(S1,
+FunctionAssoc,
+VariableAssoc,
+FunctionAssoc, 
+NewVariableAssocTemp), 
+evaluate(S2,
+FunctionAssoc,
+NewVariableAssocTemp,
+FunctionAssoc,
+NewVariableAssoc).
+
+evaluate(statementSeq(S1),FunctionAssoc, VariableAssoc, FunctionAssoc, NewVariableAssoc):-
+evaluate(S1,
+FunctionAssoc,
 VariableAssoc,
 FunctionAssoc, 
 NewVariableAssoc).
@@ -252,6 +273,7 @@ evaluate((H,T), FunctionAssoc, VariableAssoc, NewFunctionAssoc, NewVariableAssoc
 
 % ---- evaluate for API ----
 evaluate(AST, Number):-evaluate(AST, Number, FunctionAssoc, VariableAssoc).
+
 
 
 
